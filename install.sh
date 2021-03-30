@@ -170,7 +170,7 @@ function install() {
   createSwarmService
 
   echo "Installation complete"
-  echo "Your node password: $(cat $passPath). You can find it also here: $passpath"
+  echo "Your node password: $(cat $passPath). You can find it also here: $passPath"
   echo "Check the node status: systemctl status bee"
   echo "Check the logs: journalctl -f -u bee"
   sleep 10
