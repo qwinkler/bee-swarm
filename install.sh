@@ -1,61 +1,46 @@
 #!/bin/bash
 #
-# Скрипт установки Swarm Bee node
-#
-#
-#
-# thanks to root#2682
+# Script for Swarm Bee node installation
 
-echo "
-+----------------------------------------------------------------------
-| Установка Swarm Bee  для Ubuntu/Debian
-+----------------------------------------------------------------------
-| Copyright © 2015-2021 All rights reserved.
-+----------------------------------------------------------------------
-| https://t.me/ru_swarm Russian offical Swarm Bee TG
-+----------------------------------------------------------------------
-";sleep 5
+echo "Bee Swarm Node installation for Ubuntu/Debian"
 
 PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
 export PATH
 LANG=ru_RU.UTF-8
 
+BASEDIR="/mnt/bee"
+if [ ! -d "$BASEDIR" ]; then
+  echo "The ${BASEDIR} directory does not exist. Aborting"
+  exit 1
+fi
 
-# пути к осноаным файлам
-logPath='/root/bee-run.log'
-cashlogPath='/root/cash.log'
-passPath='/root/bee-pass.txt'
-swapEndpoint='https://rpc.slock.it/goerli'
-cashScriptPath='/root/cashout.sh'
-homedir=$HOME
-externalIp=$(curl -4 ifconfig.io)
-
-
-
-red='\e[91m'
-green='\e[92m'
-yellow='\e[93m'
-magenta='\e[95m'
-cyan='\e[96m'
-none='\e[0m'
-_red() { echo -e ${red}$*${none}; }
-_green() { echo -e ${green}$*${none}; }
-_yellow() { echo -e ${yellow}$*${none}; }
-_magenta() { echo -e ${magenta}$*${none}; }
-_cyan() { echo -e ${cyan}$*${none}; }
+# base vars
+dataDir="${BASEDIR}/data"
+logPath="${BASEDIR}/run.log"
+cashlogPath="${BASEDIR}/cash.log"
+passPath="${BASEDIR}/bee-pass.txt"
+swapEndpoint="https://rpc.slock.it/goerli"
+cashScriptPath="${BASEDIR}/cashout.sh"
+homedir="${BASEDIR}"
+externalIp=$(curl -s -4 ifconfig.io)
+commitID="main"
+beeClientVersion="v0.5.3"
+beeClefVersion="0.4.9"
 
 if [ $(id -u) != "0" ]; then
-    echo "Ошибка: Вы должны быть root, чтобы запустить этот скрипт. (Введите: sudo su)"
+    echo "You have to run this scipt as a root user. Aborting."
     exit 1
 fi
 
-# Функция установки Bee в сервис
-createSwarmService(){
-    date "+【%Y-%m-%d %H:%M:%S】 Installing the Swarm Bee service" 2>&1 | tee -a $logPath
+mkdir -p $dataDir
+
+# Installing the Swarm as a service
+createSwarmService() {
+  date "+【%Y-%m-%d %H:%M:%S】 Installing the Swarm Bee service" 2>&1 | tee -a $logPath
 	if [ ! -f /etc/systemd/system/bee.service ]; then
-	cat >> /etc/systemd/system/bee.service << EOF
+	  cat >> /etc/systemd/system/bee.service << EOF
 [Unit]
-Description=Bee Bzz Bzzzzz service
+Description=Bee Bzz Service
 After=network.target
 StartLimitIntervalSec=0
 [Service]
@@ -69,61 +54,58 @@ StandartError=append:/var/log/bee-err.log
 [Install]
 WantedBy=multi-user.target
 EOF
-echo 'Сервис уже установлен'
-else date "+【%Y-%m-%d %H:%M:%S】 Сервис уже установлен" 2>&1 | tee -a $logPath
-fi
+  echo 'Service already installed'
+  else date "+【%Y-%m-%d %H:%M:%S】 Service already installed" 2>&1 | tee -a $logPath
+  fi
 
-# Перезапуск сервисов
-systemctl daemon-reload
+  # Reload daemon
+  systemctl daemon-reload
 
-# Добавление ноды в автозапуск
-systemctl enable bee
+  # Enable bee service
+  systemctl enable bee
 
-# Запуск ноды
-systemctl start bee
+  # Run the node itself
+  systemctl start bee
 }
 
 
-# Функция установки скрипта для обналичивания чеков
-getCashoutScript(){
+# The function of installing a script for cashing checks
+getCashoutScript() {
+  if [ ! -f $cashScriptPath ]; then
+  date "+【%Y-%m-%d %H:%M:%S】 The function of installing a script for cashing checks" 2>&1 | tee -a $logPath
+  echo 'The function of installing a script for cashing checks';sleep 2
 
-if [ ! -f $cashScriptPath ]; then
-date "+【%Y-%m-%d %H:%M:%S】 Установка скрипта для обналичивания чеков" 2>&1 | tee -a $logPath
-echo 'Установка скрипта для обналичивания чеков';sleep 2
+  # Download the scipt
+  wget -O $cashScriptPath https://raw.githubusercontent.com/qwinkler/bee-swarm/$commitID/cashout.sh && chmod a+x $cashScriptPath
+  else
+  date "+【%Y-%m-%d %H:%M:%S】 '$cashScriptPath' File already exist" 2>&1 | tee -a $logPath
+  fi
 
-# Скачивание скрипта
-wget -O $cashScriptPath https://github.com/grodstrike/bee-swarm/raw/main/cashout.sh && chmod a+x $cashScriptPath
-else
-date "+【%Y-%m-%d %H:%M:%S】 '$cashScriptPath' Файл уже есть" 2>&1 | tee -a $logPath
-fi
+  # Write out current crontab
+  crontab -l > mycron
 
-# Добавление в cron скрипта
-#write out current crontab
-crontab -l > mycron
-#echo new cron into cron file
-echo "0 */12 * * *  /bin/bash $cashScriptPath cashout-all >> $cashlogPath 2>&1" >> mycron
-#install new cron file
-crontab mycron
-rm -f mycron
-systemctl restart crond
+  # Echo new cron into cron file
+  echo "0 */12 * * *  /bin/bash $cashScriptPath cashout-all >> $cashlogPath 2>&1" >> mycron
 
+  # Install new cron file
+  crontab mycron
+  rm -f mycron
+  systemctl restart crond
 }
 
-
-
-createConfig(){
-date "+【%Y-%m-%d %H:%M:%S】 Создание конфига" 2>&1 | tee -a $logPath
-echo 'Создание конфига..'; sleep 2
-if [ ! -f $homedir/bee-default.yaml ]; then
-cat >> $homedir/bee-default.yaml << EOF
+createConfig() {
+  date "+【%Y-%m-%d %H:%M:%S】 Create config" 2>&1 | tee -a $logPath
+  echo 'Create config..'; sleep 2
+  if [ ! -f $homedir/bee-default.yaml ]; then
+    cat >> $homedir/bee-default.yaml << EOF
 api-addr: :1633
 bootnode:
 - /dnsaddr/bootnode.ethswarm.org
 clef-signer-enable: false
 clef-signer-endpoint: ""
-config: /root/bee-default.yaml
+config: ${homedir}/bee-default.yaml
 cors-allowed-origins: []
-data-dir: /root/.bee
+data-dir: ${dataDir}
 db-capacity: "5000000"
 debug-api-addr: :1635
 debug-api-enable: true
@@ -150,64 +132,52 @@ tracing-enable: false
 tracing-endpoint: 127.0.0.1:6831
 tracing-service-name: bee
 verbosity: 2
-welcome-message: "Hello from Russian Bees https://t.me/ru_swarm"
+welcome-message: "Hello from qwinkler! https://github.com/qwinkler/bee-swarm"
 EOF
-else date "+【%Y-%m-%d %H:%M:%S】 Конфиг файл уже создан" 2>&1 | tee -a $logPath
-fi
+  else date "+【%Y-%m-%d %H:%M:%S】 The config file already exists" 2>&1 | tee -a $logPath
+  fi
 }
 
-function Install_Main() {
-if [ ! -f $passPath ]; then
-date "+【%Y-%m-%d %H:%M:%S】 Генерация /root/bee-pass.txt" 2>&1 | tee -a /root/run.log
-echo "Введите пароль для ноды (он будет хранится тут $passPath):"
-read  n
-echo  $n > $passPath;
-date "+【%Y-%m-%d %H:%M:%S】 Ваш пароль от ноды: " && cat $passPath  2>&1 | tee -a /root/run.log
-fi
+function install() {
+  if [ ! -f $passPath ]; then
+  date "+【%Y-%m-%d %H:%M:%S】 Generating password file ${passPath}" 2>&1 | tee -a ${pwd}/run.log
+  echo "Create the node password (will be stored here $passPath):"
+  read  n
+  echo  $n > $passPath;
+  date "+【%Y-%m-%d %H:%M:%S】Your node password: " && cat $passPath  2>&1 | tee -a ${pwd}/run.log
+  fi
 
-echo 'Установка пакетов...'; sleep 2
+  date "+【%Y-%m-%d %H:%M:%S】 Installing packages" 2>&1 | tee -a ${pwd}/run.log
+  apt-get update
+  apt -y install curl wget tmux jq
 
-date "+【%Y-%m-%d %H:%M:%S】 Установка пакетов" 2>&1 | tee -a /root/run.log
-sudo apt-get update
-sudo apt -y install curl wget tmux jq
+  echo 'Installing Swarm Bee client'; sleep 2
+  date "+【%Y-%m-%d %H:%M:%S】 Installing Swarm Bee client" 2>&1 | tee -a ${pwd}/run.log
+  curl -s https://raw.githubusercontent.com/ethersphere/bee/master/install.sh | TAG=$beeClientVersion bash
 
-echo 'Установка Swarm Bee..'; sleep 2
-date "+【%Y-%m-%d %H:%M:%S】 Установка Swarm Bee" 2>&1 | tee -a /root/run.log
-curl -s https://raw.githubusercontent.com/ethersphere/bee/master/install.sh | TAG=v0.5.3 bash
+  echo 'Installing Bee Clef'; sleep 2
 
-echo 'Установка Bee Clef..'; sleep 2
+  date "+【%Y-%m-%d %H:%M:%S】 Installing Bee Clef" 2>&1 | tee -a ${pwd}/run.log
+  wget -qO bee-clef.deb https://github.com/ethersphere/bee-clef/releases/download/v${beeClefVersion}/bee-clef_${beeClefVersion}_amd64.deb \
+    && dpkg -i bee-clef.deb
 
-date "+【%Y-%m-%d %H:%M:%S】 Установка Bee Clef" 2>&1 | tee -a /root/run.log
-wget https://github.com/ethersphere/bee-clef/releases/download/v0.4.7/bee-clef_0.4.7_amd64.deb && dpkg -i bee-clef_0.4.7_amd64.deb
+  # wget -qO local-dash.sh https://github.com/doristeo/SwarmBeeBzzz/raw/main/local-dash.sh
+  wget -qO local-dash.sh https://raw.githubusercontent.com/qwinkler/bee-swarm/$commitID/local-dash.sh
+  chmod +x local-dash.sh
 
-wget https://github.com/doristeo/SwarmBeeBzzz/raw/main/local-dash.sh
-chmod +x local-dash.sh
+  createConfig
+  getCashoutScript
+  createSwarmService
 
-
-
-createConfig
-getCashoutScript
-createSwarmService
-
-echo ''
-echo "
-+----------------------------------------------------------------------"
-echo -e "\e[42mУстановка завершена!\e[0m"; echo ''; echo 'Пароль вашей ноды:' && cat $passPath && echo '' && echo 'Хранится по пути: '; echo $passPath
-echo "
-+----------------------------------------------------------------------"
-echo ''
-echo -e 'Запущена ли нода? Проверьте командой \e[42msystemctl status bee\e[0m'
-echo -e 'Показать логи \e[42mjournalctl -f -u bee\e[0m'
-sleep 10
-address="0x`cat ~/.bee/keys/swarm.key | jq '.address'|sed 's/\"//g'`" && echo "Ваш кошелек ноды:" && echo ${address}
-echo "
-+----------------------------------------------------------------------"
-echo -e " Далее вам нужно пополнить баланс кошелька тестовыми токенами. Переходим по ссылке https://discord.gg/f697tZaZjk , далее переходим в чат #faucet-request и вводим \e[42msprinkle ${address}\e[0m"
-echo -e "Инструкция по пополнению токенами https://telegra.ph/gbzz-geth-02-22"
-echo "
-+----------------------------------------------------------------------"
-echo ''
-
+  echo "Installation complete"
+  echo "Your node password: $(cat $passPath). You can find it also here: $passpath"
+  echo "Check the node status: systemctl status bee"
+  echo "Check the logs: journalctl -f -u bee"
+  sleep 10
+  address="0x`cat ${dataDir}/keys/swarm.key | jq '.address' | sed 's/\"//g'`" && echo "Your node address: ${address}"
+  echo "Add the test tokens to the node. Go to: https://discord.gg/f697tZaZjk, chat #faucet-request and create the message:"
+  echo "sprinkle ${address}"
+  echo "Instruction: https://telegra.ph/gbzz-geth-02-22"
 }
 
-Install_Main
+install
