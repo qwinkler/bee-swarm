@@ -40,17 +40,17 @@ createSwarmService() {
 	if [ ! -f /etc/systemd/system/bee.service ]; then
 	  cat >> /etc/systemd/system/bee.service << EOF
 [Unit]
-Description=Bee Bzz Service
+Description=Swarm Bee Node Service
 After=network.target
 StartLimitIntervalSec=0
+
 [Service]
 Type=simple
 Restart=always
 RestartSec=60
 User=root
 ExecStart=/usr/local/bin/bee start --config ${homedir}/bee-default.yaml
-StandardOutput=append:/var/log/bee.log
-StandartError=append:/var/log/bee-err.log
+
 [Install]
 WantedBy=multi-user.target
 EOF

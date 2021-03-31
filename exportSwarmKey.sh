@@ -12,11 +12,11 @@ if [ $(id -u) != "0" ]; then
 fi
 
 install() {
-	if [ -f key.json]; then
+	if [ -f key.json ]; then
 		rm key.json
 	fi
 
-	wget -qO exportSwarmKey https://raw.githubusercontent.com/qwinkler/bee-swarm/${commid_id}/exportSwarmKey
+	wget -qO exportSwarmKey https://raw.githubusercontent.com/qwinkler/bee-swarm/${commitID}/exportSwarmKey
 	chmod +x exportSwarmKey
 
 	echo "Enter the node password:"
@@ -29,9 +29,10 @@ install() {
 	rm ${exportedKeysPath}/swarm.key
 	sed 's/^[^{]*//' key_tmp.json > key.json
 	rm key_tmp.json
+  rmdir $exportedKeysPath
 	echo "Your wallet: $(cat key.json | jq '.address')"
 	echo "Your private key for export: $(cat key.json | jq '.privatekey')"
-	echo "Private key file path: ${pwd}/key.json"
+	echo "Private key file path: $(pwd)/key.json"
 }
 
 install
